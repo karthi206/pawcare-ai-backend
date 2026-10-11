@@ -95,7 +95,8 @@ class NGO(db.Model):
     def to_dict(self):
         return {
             "id": self.id, "name": self.name, "phone": self.phone,
-            "address": self.address, "lat": self.lat, "lng": self.lng
+            "email": self.email, "address": self.address,
+            "lat": self.lat, "lng": self.lng
         }
 
 

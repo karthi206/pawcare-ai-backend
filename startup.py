@@ -115,12 +115,11 @@ def seed_fixed_admin(db):
     username or email changed instead of updating the original row.
     """
     FIXED_ADMIN_USERNAME = os.environ.get('FIXED_ADMIN_USERNAME', 'admin')
-    FIXED_ADMIN_PASSWORD = os.environ.get('FIXED_ADMIN_PASSWORD', 'admin123')
+    FIXED_ADMIN_PASSWORD = os.environ.get('FIXED_ADMIN_PASSWORD')
     FIXED_ADMIN_EMAIL = os.environ.get('FIXED_ADMIN_EMAIL', 'admin@pawcare.local')
 
-    if not (FIXED_ADMIN_USERNAME and FIXED_ADMIN_PASSWORD):
-        print("[startup] FIXED_ADMIN_USERNAME / FIXED_ADMIN_PASSWORD not set — skipping admin auto-seed.")
-        return
+    if not FIXED_ADMIN_PASSWORD:
+        raise RuntimeError("FIXED_ADMIN_PASSWORD must be configured")
 
     existing_admin = User.query.filter_by(is_fixed_admin=True).first()
 
