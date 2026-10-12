@@ -1,8 +1,9 @@
 import os
 import uuid
 import hashlib
+from urllib.parse import urlparse
 
-from flask import Blueprint, request, jsonify, send_from_directory, redirect
+from flask import Blueprint, request, jsonify, send_from_directory, redirect, abort
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from werkzeug.utils import secure_filename
 import cloudinary.uploader
@@ -175,14 +176,32 @@ def upload():
                 pass
 
 
-@cases_bp.route('/uploads/<filename>', methods=['GET'])
-@cases_bp.route('/api/uploads/<filename>', methods=['GET'])
+@cases_bp.route('/uploads/<path:filename>', methods=['GET'])
+@cases_bp.route('/api/uploads/<path:filename>', methods=['GET'])
 def serve_upload(filename):
-    """Backwards compatibility upload route."""
-    if filename.startswith('http'):
+    """Backwards compatibility upload route.
+
+    If ``filename`` is a Cloudinary URL (scheme=https, host=res.cloudinary.com)
+    we redirect to it.  Any other value – including http://, protocol-relative
+    //evil.com, or hostname tricks like res.cloudinary.com.evil.com or
+    res.cloudinary.com@evil.com – returns 404.
+    """
+    parsed = urlparse(filename)
+    # Strict allow-list: https scheme, exact hostname, no userinfo
+    if (
+        parsed.scheme == "https"
+        and parsed.hostname == "res.cloudinary.com"
+        and not parsed.username  # reject userinfo tricks (user@host)
+    ):
         return redirect(filename)
-    safe_filename = secure_filename(filename)
-    return send_from_directory(UPLOAD_FOLDER, safe_filename)
+
+    # For plain filenames (no scheme, no netloc) try to serve from the local upload folder
+    if not parsed.scheme and not parsed.netloc:
+        safe_filename = secure_filename(filename)
+        return send_from_directory(UPLOAD_FOLDER, safe_filename)
+
+    # Anything else (wrong scheme, wrong host, protocol-relative, …) → 404
+    abort(404)
 
 
 @cases_bp.route('/cases', methods=['GET'])

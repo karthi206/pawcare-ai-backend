@@ -2,6 +2,7 @@ import os
 
 from flask import Flask, jsonify
 from flask_cors import CORS
+from werkzeug.middleware.proxy_fix import ProxyFix
 from jwt.exceptions import (
     PyJWTError, InvalidTokenError, ExpiredSignatureError, DecodeError,
 )
@@ -28,6 +29,33 @@ cloudinary.config(
 
 app = Flask(__name__)
 app.config.from_object(Config)
+
+# --- Reverse-proxy IP fix ---------------------------------------------------
+# Vercel and Render both sit in front of Flask, so request.remote_addr is the
+# proxy's address.  ProxyFix reads the X-Forwarded-For chain and sets
+# request.remote_addr to the real client IP.
+#
+# TRUST_PROXY_HOPS controls how many rightmost XFF entries to trust (i.e. how
+# many reverse-proxy hops sit between the internet and this process).  Default
+# is 1 (one hop = one Vercel/Render edge).  Set to 0 only in bare-metal local
+# dev where there is *no* proxy in front of Flask.
+#
+# An attacker can prepend arbitrary IPs to X-Forwarded-For, but werkzeug only
+# strips the *rightmost* `x_for` entries (added by trusted proxies), so a
+# spoofed left-hand entry is treated as the real client IP and still gets its
+# own rate-limit bucket — it does NOT bypass the limit.
+_raw_hops = os.environ.get('TRUST_PROXY_HOPS', '1')
+try:
+    _hops = int(_raw_hops)
+    if _hops < 0:
+        raise ValueError("must be non-negative")
+except (ValueError, TypeError) as _err:
+    raise RuntimeError(
+        f"TRUST_PROXY_HOPS='{_raw_hops}' is invalid: {_err}. "
+        "Set it to a non-negative integer (default 1 for Vercel/Render)."
+    ) from _err
+
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=_hops, x_proto=1, x_host=1)
 
 CORS(app, origins=Config.CORS_ORIGINS, supports_credentials=True)
 
