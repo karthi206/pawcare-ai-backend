@@ -148,3 +148,30 @@ def test_spoofed_xff_does_not_bypass_limit(client):
         f"Spoofed XFF prefix must not bypass rate-limit — got {resp.status_code}. "
         f"XFF sent: '{spoofed_xff}'"
     )
+
+
+def test_debug_ip_route(client):
+    """
+    Test GET /api/_debug/ip returns remote_addr, raw X-Forwarded-For,
+    trust_proxy_hops, and get_remote_address.
+    """
+    client_ip = "198.51.100.42"
+    resp = client.get(
+        '/api/_debug/ip',
+        environ_base={"HTTP_X_FORWARDED_FOR": client_ip},
+    )
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert data["remote_addr"] == client_ip
+    assert data["x_forwarded_for"] == client_ip
+    assert "trust_proxy_hops" in data
+    assert data["get_remote_address"] == client_ip
+
+    # Verify /_debug/ip alias
+    resp_alias = client.get('/_debug/ip')
+    assert resp_alias.status_code == 200
+    data_alias = resp_alias.get_json()
+    assert data_alias["remote_addr"] == "127.0.0.1"
+    assert data_alias["x_forwarded_for"] is None
+    assert data_alias["get_remote_address"] == "127.0.0.1"
+

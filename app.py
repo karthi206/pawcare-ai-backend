@@ -1,6 +1,6 @@
 import os
 
-from flask import Flask, jsonify
+from flask import Flask, jsonify, request
 from flask_cors import CORS
 from werkzeug.middleware.proxy_fix import ProxyFix
 from jwt.exceptions import (
@@ -13,7 +13,7 @@ from flask_jwt_extended.exceptions import (
 )
 
 from config import Config, require_jwt_secret, require_database_url, UPLOAD_FOLDER
-from extensions import db, jwt, limiter
+from extensions import db, jwt, limiter, get_remote_address
 from models import TokenBlocklist
 
 # config.py loads .env as soon as it's imported (see the top of that file),
@@ -192,6 +192,17 @@ app.register_blueprint(geocode_bp)
 @app.route('/')
 def home():
     return "PawCare AI backend is running!"
+
+
+@app.route('/_debug/ip', methods=['GET'])
+@app.route('/api/_debug/ip', methods=['GET'])
+def debug_ip():
+    return jsonify({
+        "remote_addr": request.remote_addr,
+        "x_forwarded_for": request.headers.get("X-Forwarded-For"),
+        "trust_proxy_hops": os.environ.get("TRUST_PROXY_HOPS", "1"),
+        "get_remote_address": get_remote_address(),
+    })
 
 
 with app.app_context():
