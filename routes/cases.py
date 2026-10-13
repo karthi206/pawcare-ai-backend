@@ -1,6 +1,7 @@
 import os
 import uuid
 import hashlib
+import logging
 from urllib.parse import urlparse
 
 from flask import Blueprint, request, jsonify, send_from_directory, redirect, abort
@@ -19,6 +20,7 @@ from helpers import get_current_user_obj, require_verified_vet_or_admin
 from extensions import limiter
 
 cases_bp = Blueprint('cases', __name__)
+logger = logging.getLogger(__name__)
 
 @cases_bp.route('/upload', methods=['POST'])
 @cases_bp.route('/api/upload', methods=['POST'])
@@ -166,8 +168,8 @@ def upload():
             "message": result["message"],
         })
     except Exception as inference_err:
-        print(f"[upload] Error during inference/processing: {inference_err}")
-        return jsonify({"error": "processing_failed", "message": f"Failed to analyze image: {str(inference_err)}"}), 500
+        logger.exception(f"[upload] Error during inference/processing: {inference_err}")
+        return jsonify({"error": "processing_failed", "message": "Image analysis failed. Please try again."}), 500
     finally:
         if os.path.exists(temp_filepath):
             try:

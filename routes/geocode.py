@@ -1,14 +1,22 @@
 import math
+import os
 
 from flask import Blueprint, request, jsonify
 
+from extensions import limiter
 from services.geocoding import resolve_coordinates_to_address
 
 geocode_bp = Blueprint('geocode', __name__)
 
 
+def _rate_limit_geocode():
+    val = os.getenv("RATELIMIT_GEOCODE_REVERSE", "30/minute")
+    return val + "ute" if val.endswith("/min") else val
+
+
 @geocode_bp.route('/geocode/reverse', methods=['GET'])
 @geocode_bp.route('/api/geocode/reverse', methods=['GET'])
+@limiter.limit(_rate_limit_geocode)
 def reverse_geocode():
     lat_raw = request.args.get('lat')
     lng_raw = request.args.get('lng')

@@ -84,3 +84,22 @@ def test_upload_rate_limited_after_twenty(client, valid_jpeg_bytes):
             }, content_type='multipart/form-data')
             last_status = resp.status_code
     assert last_status == 429
+
+
+def test_upload_inference_failure_returns_generic_message_and_logs(client, valid_jpeg_bytes, caplog):
+    sensitive_detail = "internal db connection failure with secret key xyz123"
+    with patch('routes.cases.is_likely_dog', return_value=True), \
+         patch('routes.cases.predict_image', side_effect=RuntimeError(sensitive_detail)):
+        with caplog.at_level("ERROR"):
+            resp = client.post('/upload', data={
+                'image': (BytesIO(valid_jpeg_bytes), 'test.jpg'),
+            }, content_type='multipart/form-data')
+
+    assert resp.status_code == 500
+    body = resp.get_json()
+    assert body['error'] == 'processing_failed'
+    assert body['message'] == 'Image analysis failed. Please try again.'
+    # Ensure raw internal details are never leaked to clients
+    assert sensitive_detail not in resp.get_data(as_text=True)
+    # Ensure traceback/details were captured server-side in logs
+    assert sensitive_detail in caplog.text

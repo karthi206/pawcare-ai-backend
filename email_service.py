@@ -31,26 +31,33 @@ def send_ngo_notification_email(ngo, message: str) -> bool:
         })
         return True
     except Exception as e:
-        logger.error(f"Failed to send NGO notification email to {ngo.email}: {e}")
+        logger.error(f"Failed to send NGO notification email to NGO {ngo.id}: {e}")
         return False
 
 def send_vet_decision_email(vet, approved: bool):
     try:
         status_text = "approved" if approved else "rejected"
+        safe_username = html.escape(str(vet.username or ''))
         resend.Emails.send({
             "from": FROM_EMAIL,
             "to": [vet.email],
             "subject": f"Your PawCare Vet Verification was {status_text.capitalize()}",
             "html": f"""
-                <p>Hi {vet.username},</p>
+                <p>Hi {safe_username},</p>
                 <p>Your vet verification request has been <strong>{status_text}</strong>.</p>
                 {"<p>You can now log in and access vet features.</p>" if approved else "<p>If you believe this is a mistake, please contact support.</p>"}
             """
         })
     except Exception as e:
         logger.error(f"Failed to send vet decision email: {e}")
+
+
 def send_vet_registration_email(vet):
     try:
+        safe_username = html.escape(str(vet.username or ''))
+        safe_email = html.escape(str(vet.email or ''))
+        safe_license = html.escape(str(vet.license_number or ''))
+        safe_clinic = html.escape(str(vet.clinic_name or ''))
         resend.Emails.send({
             "from": FROM_EMAIL,
             "to": [ADMIN_EMAIL],
@@ -58,13 +65,14 @@ def send_vet_registration_email(vet):
             "html": f"""
                 <p>A new vet has registered and needs verification:</p>
                 <ul>
-                    <li>Name: {vet.username}</li>
-                    <li>Email: {vet.email}</li>
-                    <li>License #: {vet.license_number}</li>
-                    <li>Clinic: {vet.clinic_name}</li>
+                    <li>Name: {safe_username}</li>
+                    <li>Email: {safe_email}</li>
+                    <li>License #: {safe_license}</li>
+                    <li>Clinic: {safe_clinic}</li>
                 </ul>
                 <p>Review in the admin panel.</p>
             """
         })
     except Exception as e:
         logger.error(f"Failed to send vet registration email: {e}")
+

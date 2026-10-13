@@ -40,7 +40,13 @@ class Config:
     ]
 
     # Database
-    _database_url = os.environ.get('DATABASE_URL', 'sqlite:///cases.db')
+    # SECURITY: no silent SQLite fallback. Fail loudly at startup if unset.
+    _database_url = os.environ.get('DATABASE_URL')
+    if not _database_url:
+        raise RuntimeError(
+            "DATABASE_URL is not set. Refusing to start with a silent fallback — "
+            "set DATABASE_URL in the environment (e.g. 'sqlite:///cases.db' for local dev)."
+        )
     if _database_url.startswith('postgres://'):
         _database_url = _database_url.replace('postgres://', 'postgresql://', 1)
     SQLALCHEMY_DATABASE_URI = _database_url
@@ -61,7 +67,7 @@ class Config:
     JWT_TOKEN_LOCATION = ['cookies', 'headers']
     JWT_ACCESS_COOKIE_PATH = '/'
     JWT_COOKIE_CSRF_PROTECT = True
-    JWT_ACCESS_TOKEN_EXPIRES = timedelta(hours=24)
+    JWT_ACCESS_TOKEN_EXPIRES = timedelta(hours=float(os.environ.get('JWT_ACCESS_TOKEN_HOURS', 4)))
     JWT_COOKIE_SECURE = os.environ.get('JWT_COOKIE_SECURE', 'true').lower() != 'false'
     JWT_COOKIE_SAMESITE = 'None' if JWT_COOKIE_SECURE else 'Lax'
 
@@ -77,3 +83,13 @@ def require_jwt_secret():
             "JWT_SECRET_KEY is not set. Refusing to start with a hardcoded "
             "fallback secret — set JWT_SECRET_KEY in the environment."
         )
+
+
+def require_database_url():
+    """Raises if no database URL is configured."""
+    if not os.environ.get('DATABASE_URL'):
+        raise RuntimeError(
+            "DATABASE_URL is not set. Refusing to start with a silent fallback — "
+            "set DATABASE_URL in the environment (e.g. 'sqlite:///cases.db' for local dev)."
+        )
+

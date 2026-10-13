@@ -12,12 +12,14 @@ from flask_jwt_extended.exceptions import (
     FreshTokenRequired, UserLookupError, WrongTokenError,
 )
 
-from config import Config, require_jwt_secret, UPLOAD_FOLDER
+from config import Config, require_jwt_secret, require_database_url, UPLOAD_FOLDER
 from extensions import db, jwt, limiter
+from models import TokenBlocklist
 
 # config.py loads .env as soon as it's imported (see the top of that file),
 # so by the time we get here Config's env-backed values are already correct.
 require_jwt_secret()
+require_database_url()
 
 import cloudinary  # noqa: E402
 
@@ -85,6 +87,19 @@ def custom_expired_token_response(jwt_header=None, jwt_payload=None):
 @jwt.needs_fresh_token_loader
 def custom_needs_fresh_token_response(jwt_header=None, jwt_payload=None):
     return jsonify({"error": "fresh_token_required", "message": "Fresh token required. Please log in again."}), 401
+
+
+@jwt.token_in_blocklist_loader
+def check_if_token_is_revoked(jwt_header, jwt_payload):
+    jti = jwt_payload.get("jti")
+    if not jti:
+        return True
+    try:
+        token = db.session.query(TokenBlocklist.id).filter_by(jti=jti).scalar()
+        return token is not None
+    except Exception as exc:
+        app.logger.error("Database check failed in token_in_blocklist_loader; failing closed: %s", exc)
+        return True
 
 
 @jwt.revoked_token_loader

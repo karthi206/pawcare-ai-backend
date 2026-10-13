@@ -1,15 +1,18 @@
+from datetime import datetime, timezone, timedelta
+
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import (
     create_access_token, jwt_required, get_jwt_identity,
     set_access_cookies, unset_jwt_cookies, get_csrf_token, get_jwt,
 )
 
-from extensions import db
-from models import User
+from extensions import db, limiter
+from models import User, TokenBlocklist
 from email_service import send_vet_registration_email
-from extensions import limiter
 
 auth_bp = Blueprint('auth', __name__)
+
+MIN_PASSWORD_LENGTH = 8
 
 
 @auth_bp.route('/auth/register', methods=['POST'])
@@ -25,8 +28,8 @@ def register():
     if not username or not email or not password:
         return jsonify({"error": "username, email, and password are required"}), 400
 
-    if not isinstance(password, str) or len(password.strip()) < 6:
-        return jsonify({"error": "Password must be at least 6 characters long"}), 400
+    if not isinstance(password, str) or len(password.strip()) < MIN_PASSWORD_LENGTH:
+        return jsonify({"error": f"Password must be at least {MIN_PASSWORD_LENGTH} characters long"}), 400
 
     if role not in ['user', 'vet']:
         return jsonify({"error": "Invalid role"}), 400
@@ -85,7 +88,36 @@ def login():
 
 @auth_bp.route('/auth/logout', methods=['POST'])
 @auth_bp.route('/api/auth/logout', methods=['POST'])
+@jwt_required()
 def logout():
+    raw_jwt = get_jwt()
+    jti = raw_jwt.get('jti')
+    token_type = raw_jwt.get('type', 'access')
+    exp_timestamp = raw_jwt.get('exp')
+    if exp_timestamp:
+        expires_at = datetime.fromtimestamp(exp_timestamp, tz=timezone.utc).replace(tzinfo=None)
+    else:
+        expires_at = datetime.utcnow() + timedelta(hours=4)
+
+    if jti:
+        existing = TokenBlocklist.query.filter_by(jti=jti).first()
+        if not existing:
+            block_entry = TokenBlocklist(
+                jti=jti,
+                token_type=token_type,
+                expires_at=expires_at,
+                created_at=datetime.utcnow()
+            )
+            db.session.add(block_entry)
+
+    now = datetime.utcnow()
+    TokenBlocklist.query.filter(TokenBlocklist.expires_at < now).delete(synchronize_session=False)
+
+    try:
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+
     resp = jsonify({"message": "Logged out"})
     unset_jwt_cookies(resp)
     return resp
@@ -211,8 +243,8 @@ def update_password():
     if not user.check_password(current_password):
         return jsonify({"error": "Current password is incorrect"}), 400
 
-    if not isinstance(new_password, str) or len(new_password.strip()) < 6:
-        return jsonify({"error": "New password must be at least 6 characters long"}), 400
+    if not isinstance(new_password, str) or len(new_password.strip()) < MIN_PASSWORD_LENGTH:
+        return jsonify({"error": f"New password must be at least {MIN_PASSWORD_LENGTH} characters long"}), 400
 
     user.set_password(new_password)
     db.session.commit()

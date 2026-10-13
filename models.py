@@ -147,3 +147,22 @@ class AdoptionRequest(db.Model):
             "id": self.id, "pet_id": self.pet_id, "user_id": self.user_id,
             "status": self.status, "created_at": self.created_at.isoformat()
         }
+
+
+class TokenBlocklist(db.Model):
+    __tablename__ = 'token_blocklist'
+
+    id = db.Column(db.Integer, primary_key=True)
+    jti = db.Column(db.String(36), nullable=False, unique=True, index=True)
+    token_type = db.Column(db.String(10), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    expires_at = db.Column(db.DateTime, nullable=False)
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "jti": self.jti,
+            "token_type": self.token_type,
+            "created_at": self.created_at.isoformat(),
+            "expires_at": self.expires_at.isoformat(),
+        }

@@ -11,7 +11,7 @@ _tmp_dir = tempfile.mkdtemp()
 _test_db_path = os.path.join(_tmp_dir, 'test.db')
 
 os.environ['DATABASE_URL'] = f'sqlite:///{_test_db_path}'
-os.environ.setdefault('JWT_SECRET_KEY', 'test-secret-key-for-pytest-only')
+os.environ.setdefault('JWT_SECRET_KEY', 'test-secret-key-for-pytest-only-32bytes')
 os.environ.setdefault('JWT_COOKIE_SECURE', 'false')
 os.environ.setdefault('CLOUDINARY_CLOUD_NAME', 'test')
 os.environ.setdefault('CLOUDINARY_API_KEY', 'test')

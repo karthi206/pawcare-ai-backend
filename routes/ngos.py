@@ -1,11 +1,12 @@
 import math
+import os
 import re
 from datetime import datetime, timedelta
 
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required
 
-from extensions import db
+from extensions import db, limiter
 from models import NGO, NGONotification
 from utils.geo import haversine_distance
 from services.osm import get_live_nearby_places
@@ -92,8 +93,14 @@ def get_nearby_ngos():
     return jsonify(nearby_ngos)
 
 
+def _rate_limit_ngos_live_nearby():
+    val = os.getenv("RATELIMIT_NGOS_LIVE_NEARBY", "10/minute")
+    return val + "ute" if val.endswith("/min") else val
+
+
 @ngos_bp.route('/ngos/live-nearby', methods=['GET'])
 @ngos_bp.route('/api/ngos/live-nearby', methods=['GET'])
+@limiter.limit(_rate_limit_ngos_live_nearby)
 def get_live_nearby_ngos():
     lat_raw = request.args.get('lat')
     lng_raw = request.args.get('lng')

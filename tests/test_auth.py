@@ -1,4 +1,5 @@
 import os
+import sys
 import pytest
 
 
@@ -178,4 +179,18 @@ def test_invalid_trust_proxy_hops_fails_at_startup(monkeypatch):
     monkeypatch.setenv('TRUST_PROXY_HOPS', '-1')
     with pytest.raises(RuntimeError, match="TRUST_PROXY_HOPS='-1' is invalid"):
         runpy.run_path(app_path)
+
+
+def test_missing_database_url_fails_at_startup(monkeypatch):
+    """Startup must fail with RuntimeError if DATABASE_URL is unset."""
+    import runpy
+
+    backend_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    app_path = os.path.join(backend_dir, 'app.py')
+
+    monkeypatch.delenv('DATABASE_URL', raising=False)
+    monkeypatch.delitem(sys.modules, 'config', raising=False)
+    with pytest.raises(RuntimeError, match="DATABASE_URL is not set"):
+        runpy.run_path(app_path)
+
 
